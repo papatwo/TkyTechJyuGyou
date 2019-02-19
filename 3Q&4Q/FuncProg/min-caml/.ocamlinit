@@ -1,0 +1,80 @@
+(* Save this file as ".ocamlinit" under the directory, where you have min-caml.top *)
+
+open Alpha;; open Asm;; open Assoc;; open Beta;; open Closure;; open ConstFold;;
+open Elim;; open Emit;; open Id;; open Inline;; open KNormal;; open Lexer;; open M;;
+open Main;; open Parser;; open RegAlloc;; open S;; open Simm;; open Syntax;;
+open Type;; open Typing;; open Virtual;;
+
+let compose f g x = (* Function composition *)
+  f (g x)
+
+let fib_p = "let rec fib n = if n < 2 then 1 else fib (n - 1) + fib (n - 1) in print(fib 5)"
+
+let knf_p = "print(1 + 2 + 3)"
+let if_p  = "print(if 1 > 0 then 1 else 0)"
+
+let alpha_p = "print(let x = 1 in let x = 2 in x)"
+
+let lex     = Lexing.from_string
+let ast     = compose (Parser.exp Lexer.token) Lexing.from_string
+let typing  = compose Typing.f ast
+let knf     = compose KNormal.f typing
+let alpha   = compose Alpha.f knf
+
+let beta_p = "print(let x = 1 in let y = x in x + y)"
+let assoc_let_p = "print(let x = let y = 1 in let z = 2 in y + z in x)"
+let assoc_letrec_p = "print(let x = let rec f x = x + 1 in f 1 in x)"
+let assoc_tuple_p = "print(let x = (1, 2) in let (a, b) = x in a + b)"
+let constfold_p = "print(let x = 1 in let y = 2 in if y - 1 = x then x + y else y)"
+
+let beta      = compose Beta.f alpha
+let assoc     = compose Assoc.f alpha
+let inline    = compose Inline.f alpha
+let constfold = compose ConstFold.f alpha
+let elim      = compose Elim.f alpha
+
+let clconv_p = "print(let a = 1 in let rec incr x = x + a in incr 5)"
+let clconv    = compose Closure.f alpha
+
+let assignment = "let x = 1 in let rec f y z = x + y + z in print_int(f 2 3)"
+
+(* let fp6 = "let rec f x1 x2 x3 x4 x5 x6 = x1 + x2 + x3 + x4 + x5 + x6 in print_int(f 1 2 3 4 5 6)" *)
+
+(* let fp4 = "let rec f x = let x1 = x + 1 in let x2 = x + 2 in let x3 = x + 3 in let x4 = x + 4 in x1 + x2 + x3 + x4 in print_int(f 1 2 3 4)"
+let fp5 = "let rec f x = let x1 = x + 1 in let x2 = x + 2 in let x3 = x + 3 in let x4 = x + 4 in let x5 = x + 5 in x1 + x2 + x3 + x4 + x5 in print_int(f 1 2 3 4 5)" *)
+
+let vm = compose Virtual.f clconv
+let reg = compose RegAlloc.f vm
+
+
+let rec unparse tree = 
+	match tree with
+	|Syntax.Unit -> "()"
+	|Syntax.Bool (t1) -> string_of_bool t1 
+	|Syntax.Int (t1) -> string_of_int t1
+	|Syntax.Float (t1) -> string_of_float t1
+	|Syntax.Not (t1) -> "(not " ^ unparse t1 ^ ")"
+	|Syntax.Neg (t1) -> "- " ^ (unparse t1)
+	|Syntax.Add (t1, t2) -> (unparse t1) ^ " + " ^ (unparse t2) 
+	|Syntax.Sub (t1, t2) -> (unparse t1) ^ " - " ^ (unparse t2)
+	|Syntax.FNeg (t1) -> "-" ^ (unparse t1)
+	|Syntax.FAdd (t1, t2) -> (unparse t1) ^ " +. " ^ (unparse t2)
+	|Syntax.FSub (t1, t2) -> (unparse t1) ^ " -. " ^ (unparse t2)
+	|Syntax.FMul (t1, t2) -> (unparse t1) ^ " *. " ^ (unparse t2)
+	|Syntax.FDiv (t1, t2) -> (unparse t1) ^ " /. " ^ (unparse t2)
+	|Syntax.Eq (t1, t2) -> (unparse t1) ^ " = " ^ (unparse t2)
+	|Syntax.LE (t1, t2) -> (unparse t1) ^ " < " ^ (unparse t2)
+	|Syntax.If (t1, t2, t3) -> "if " ^ (unparse t1) ^ " then " ^ (unparse t2) ^ " else " ^ (unparse t3)
+	|Syntax.Let ((t1, t2), t3, t4) -> "let " ^ (t1) ^ " = " ^ (unparse t3) ^ " in " ^ (unparse t4)
+	|Syntax.Var (t1) -> t1
+	|Syntax.LetRec (fd, t1) -> "let rec " ^ (let elem e = match e with (idName, idType) -> idName in elem fd.name) ^ " " ^ (String.concat "," (List.map (function element -> match element with (idName, idType) -> idName) fd.args)) ^ " = " ^ (unparse fd.body) ^ " in " ^ (unparse t1)
+    |Syntax.App (t1, tl) -> (unparse t1) ^ " " ^ String.concat " " (List.map (function arg -> unparse arg) tl)
+    |Syntax.Tuple (tl) -> "(" ^ String.concat ", " (List.map (function arg -> unparse arg) tl) ^ ")"
+    |Syntax.LetTuple (list, t3, t4) -> "let " ^ "(" ^ String.concat "," (List.map (function element -> match element with (idName, idType) -> idName) list) ^ ")" ^ " = " ^ (unparse t3) ^ " in " ^ (unparse t4)
+	|Syntax.Array (t1, t2) -> (unparse t1) ^ (unparse t2)
+	|Syntax.Get (t1, t2) -> (unparse t1) ^ " .(" ^ (unparse t2) ^ ")"
+	|Syntax.Put (t1, t2, t3) -> (unparse t1) ^ " .(" ^ (unparse t2) ^ ")" ^ " <- " ^ (unparse t3)
+
+
+
+
